@@ -9,10 +9,10 @@
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
     <groupId>com.ANarimonov</groupId>
-    <artifactId>Nitroseen-bot</artifactId>
+    <artifactId>LocalSeen-bot</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>Nitroseen-bot</name>
-    <description>Nitroseen-bot</description>
+    <name>LocalSeen-bot</name>
+    <description>LocalSeen-bot</description>
     <properties>
         <java.version>17</java.version>
     </properties>
