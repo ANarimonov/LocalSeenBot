@@ -55,7 +55,7 @@ public class DataLoader implements CommandLineRunner {
         new TelegramBotsApi(DefaultBotSession.class).registerBot(new Bot(botToken, botUsername, userActivityRepo, userRepo, channelRepo, serviceRepo,restTemplate));
         while (true){
             String forObject = restTemplate.getForObject(
-                    "https://telsale-bot.herokuapp.com/api/test/hello",
+                    "https://localseenbot.herokuapp.com/api/test/hello",
                     String.class
             );
             System.out.println(forObject);
