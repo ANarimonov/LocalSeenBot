@@ -4,6 +4,7 @@ import com.anarimonov.localseenbot.entity.Channel;
 import com.anarimonov.localseenbot.entity.Service;
 import com.anarimonov.localseenbot.entity.User;
 import com.anarimonov.localseenbot.entity.UserActivity;
+import com.anarimonov.localseenbot.entity.dto.Data;
 import com.anarimonov.localseenbot.entity.dto.Order;
 import com.anarimonov.localseenbot.entity.dto.Payment;
 import com.anarimonov.localseenbot.entity.dto.ResponseDto;
@@ -11,6 +12,7 @@ import com.anarimonov.localseenbot.repository.ChannelRepository;
 import com.anarimonov.localseenbot.repository.ServiceRepository;
 import com.anarimonov.localseenbot.repository.UserActivityRepository;
 import com.anarimonov.localseenbot.repository.UserRepository;
+import com.google.gson.Gson;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.client.RestTemplate;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
@@ -26,7 +28,12 @@ import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKe
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardRow;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.net.URL;
+import java.net.URLConnection;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 
@@ -175,7 +182,7 @@ public class Bot extends TelegramLongPollingBot {
         } else {
             int step = userActivity.getStep();
             Order order = orderMap.get(userId);
-            if (step == 2) {
+            if (step == 2 || step == 9 || step == 11 || step == 13) {
                 if (getLink(message, userActivity, null)) return;
                 getStatus(userActivity, order);
             }
@@ -267,7 +274,8 @@ public class Bot extends TelegramLongPollingBot {
                 case "Qiwi" -> sendTextMessage(userActivity.setStep(12), "Qiwi hisob raqamini kiriting");
                 case "Kurs" -> sendTextMessage(userActivity.setStep(13), "Rublning so'mdagi kursini kiriting");
                 case "Reklama jo'natish" -> sendTextMessage(userActivity.setStep(14), "Xabarni yuboring");
-                case "Foydalanuvchiga tanga jo'natish" -> sendTextMessage(userActivity.setStep(15), "Foydalanuvchi ID si va tanga sonini kiriting (masalan: 12345678-1000)");
+                case "Foydalanuvchiga tanga jo'natish" ->
+                        sendTextMessage(userActivity.setStep(15), "Foydalanuvchi ID si va tanga sonini kiriting (masalan: 12345678-1000)");
             }
             switch (step) {
                 case 2 -> {
@@ -317,7 +325,7 @@ public class Bot extends TelegramLongPollingBot {
                     UserActivity byUserId = userActivityRepo.findByUserId(Long.parseLong(split[0]));
                     byUserId.setCoins(byUserId.getCoins() + Integer.parseInt(split[1]));
                     userActivityRepo.save(byUserId);
-                    sendTextMessage( byUserId.setStep(0),"Sizga admin tomonidan " + split[1] + " tanga yuborildi");
+                    sendTextMessage(byUserId.setStep(0), "Sizga admin tomonidan " + split[1] + " tanga yuborildi");
                 }
             }
         }
@@ -470,36 +478,48 @@ public class Bot extends TelegramLongPollingBot {
         Thread thread = new Thread(() -> {
             Service service = order.getService();
             String url;
-            if (service.getUrl().startsWith("https://global-smm.ru"))
+            int fee = order.getQuantity() * order.getService().getCost();
+            if (service.getUrl().startsWith("https://global-smm.ru")) {
                 url = service.getUrl() + "add?link=" + order.getLink() + "&amount=" + order.getQuantity() +
                         "&service=" + service.getId() + "&access_token=" + globalSmmApiKey;
-            else
+                ResponseDto res = restTemplate.getForObject(url, ResponseDto.class);
+                if (res == null || !res.isSuccess())
+                    sendTextMessage(userActivity.setCoins(userActivity.getCoins() + fee), "Buyurtma bajarilmadi ❌. \nTangalaringiz qaytarildi");
+                else order.setId(res.getData().getOrder());
+            } else {
                 url = service.getUrl() + "?key=" + seenUzApiKey + "&action=add&service=" + service.getId() + "&link=" + order.getLink() + "&quantity=" + order.getQuantity() + "&answer_number=" + order.getAnswer();
-
-            ResponseDto res = restTemplate.getForObject(url, ResponseDto.class);
-            int fee = order.getQuantity() * order.getService().getCost();
-            if (res != null && !res.isSuccess())
-                sendTextMessage(userActivity.setCoins(userActivity.getCoins() + fee), "Buyurtma bajarilmadi ❌. \nTangalaringiz qaytarildi");
+                Data res = restTemplate.getForObject(url, Data.class);
+                if (res == null)
+                    sendTextMessage(userActivity.setCoins(userActivity.getCoins() + fee), "Buyurtma bajarilmadi ❌. \nTangalaringiz qaytarildi");
+                else order.setId(res.getOrder());
+            }
             while (true) {
                 try {
                     Thread.sleep(20000);
-                    if (service.getUrl().startsWith("https://global-smm.ru"))
+                    String status = "";
+                    if (service.getUrl().startsWith("https://global-smm.ru")) {
                         url = service.getUrl() + "status?id=" + order.getId() + "&access_token=" + globalSmmApiKey;
-                    else url = service.getUrl() + "?key=" + seenUzApiKey + "&action=status&order=" + order.getId();
-                    ResponseDto res1 = restTemplate.getForObject(url, ResponseDto.class);
-                    if (res1 != null && res1.isSuccess()) {
-                        String status = res1.getData().getStatus();
-                        if (status.equalsIgnoreCase("completed")) {
-                            sendTextMessage(userActivity, "✅ Buyurtma " + order.getId() + " bajarildi!\n" +
-                                    "\n" +
-                                    "So'rov: " + order.getQuantity() + " " + order.getService().getCategory() + "\n");
-                            return;
-                        } else if (status.equalsIgnoreCase("canceled") || status.equalsIgnoreCase("deleted")) {
-                            sendTextMessage(userActivity.setCoins(userActivity.getCoins() + fee), "Buyurtma bajarilmadi ❌. \nTangalaringiz qaytarildi");
-                            return;
-                        }
+                        ResponseDto res1 = restTemplate.getForObject(url, ResponseDto.class);
+                        if (res1 != null && res1.isSuccess())
+                            status = res1.getData().getStatus();
+                    } else {
+                        URL url1 = new URL(service.getUrl() + "?key=" + seenUzApiKey + "&action=status&order=" + order.getId());
+                        URLConnection urlConnection = url1.openConnection();
+                        BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(urlConnection.getInputStream()));
+                        Gson gson = new Gson();
+                        Data data = gson.fromJson(bufferedReader, Data.class);
+                        status = data.getStatus();
                     }
-                } catch (InterruptedException e) {
+                    if (status.equalsIgnoreCase("completed")) {
+                        sendTextMessage(userActivity, "✅ Buyurtma " + order.getId() + " bajarildi! \n" +
+                                "\n" +
+                                "So'rov: " + order.getQuantity() + " " + order.getService().getCategory() + "\n");
+                        return;
+                    } else if (status.equalsIgnoreCase("canceled") || status.equalsIgnoreCase("deleted")) {
+                        sendTextMessage(userActivity.setCoins(userActivity.getCoins() + fee), "Buyurtma bajarilmadi ❌. \nTangalaringiz qaytarildi");
+                        return;
+                    }
+                } catch (InterruptedException | IOException e) {
                     throw new RuntimeException(e);
                 }
             }
@@ -593,6 +613,7 @@ public class Bot extends TelegramLongPollingBot {
             throw new RuntimeException(e);
         }
     }
+
     private void sendForwardMessage(String toChatId, String fromChatId, int messageId) {
         ForwardMessage forwardMessage = new ForwardMessage();
         forwardMessage.setChatId(toChatId);

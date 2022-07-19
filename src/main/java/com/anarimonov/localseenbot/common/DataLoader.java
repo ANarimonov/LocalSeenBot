@@ -60,7 +60,7 @@ public class DataLoader implements CommandLineRunner {
             );
             System.out.println(forObject);
             try {
-                Thread.sleep(50000);
+                Thread.sleep(55000);
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
