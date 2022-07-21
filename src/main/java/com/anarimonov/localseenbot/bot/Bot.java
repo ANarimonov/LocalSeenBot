@@ -194,8 +194,8 @@ public class Bot extends TelegramLongPollingBot {
         Service service = serviceRepo.findById(serviceId).get();
         Order order = orderMap.get(userActivity.getUser().getId());
         if (order == null) order = new Order();
-        Optional<Service> byId = serviceRepo.findById(serviceId);
-        order.setService(byId.get());
+        order.setService(service);
+        orderMap.put(userActivity.getUser().getId(), order);
         sendTextMessage(userActivity.setStep(nextStep), "\uD83D\uDC41\u200D\uD83D\uDDE8 " + service.getName() + " sonini " + service.getMin() + " dan " + service.getMax() + " gacha kiriting.\n" +
                 "\nBalansingiz: " + userActivity.getCoins() + " tanga\n" +
                 "\n" +
