@@ -253,7 +253,7 @@ public class Bot extends TelegramLongPollingBot {
                     if (amount >= minAmount) {
                         Payment payment = new Payment();
                         payment.setAmount(amount);
-                        payment.setPrice((amount / 100) * perHundredCoinPrice);
+                        payment.setPrice((amount / 100.0) * perHundredCoinPrice);
                         paymentMap.put(userId, payment);
                         sendTextMessage(userActivity.setStep(15), "\uD83D\uDD30\u200D\u200D\u200D\u200D\u200D " + amount / 100 * perHundredCoinPrice + " rublga " + amount + " tanga sotib oling.\n" +
                                 "\n" +
